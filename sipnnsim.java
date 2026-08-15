@@ -31,7 +31,7 @@ public class sipnnsim{
         float difficulty = 0.75f; // Maximum difficulty
         env.reset(0.2f);
         for(int j = 0 ; j < 30000 ;j++){
-            //double force = ctrl.fuckyou(env.x , env.xd, env.theta, env.thetad);
+            //double force = ctrl.computeControl(env.x , env.xd, env.theta, env.thetad);
             double force = nr.neuron_calc(new double[]{env.x , env.xd, Math.sin(env.theta), Math.cos(env.theta), env.thetad});
             force = (force - 0.5)*60;
 
@@ -60,7 +60,7 @@ public class sipnnsim{
         System.out.print("loading training data >  ");
         for(int i = 0 ; i < data/sessiontime ; i++){
             for(int j = 0 ; j < sessiontime ;j++){
-                double force = ctrl.fuckyou(env.x , env.xd, env.theta, env.thetad);
+                double force = ctrl.computeControl(env.x , env.xd, env.theta, env.thetad);
                 training_data[i*20000 + j] = new double[]{env.x , env.xd, env.theta, env.thetad, force};
                 env.rk4(force , dt);
             }
@@ -86,7 +86,7 @@ public class sipnnsim{
             for(int j = 0 ; j < batch_size ; j++){
                 output = nr.neuron_calc(new double[]{(training_data[add + j][0]) , (training_data[add + j][1]), Math.sin(training_data[add + j][2]), Math.cos(training_data[add + j][2]), (training_data[add + j][3])});
                 control = training_data[add + j][4]/(2*maxForce) + 0.5;
-                nr.fuckingbackpropogayson((control), learning_rate);
+                nr.backpropagate((control), learning_rate);
                 mse = mse + (control - output)*(control - output);
             }
             mse = mse/batch_size;
@@ -99,7 +99,7 @@ public class sipnnsim{
                 nr.print();
                 env.resetpi(0.2f);
                 for(int j = 0 ; j < 30000 ;j++){
-                    //double force = ctrl.fuckyou(env.x , env.xd, env.theta, env.thetad);
+                    //double force = ctrl.computeControl(env.x , env.xd, env.theta, env.thetad);
                     double force = nr.neuron_calc(new double[]{env.x , env.xd, Math.sin(env.theta), Math.cos(env.theta), env.thetad});
                     force = (force - 0.5)*60;
 
@@ -266,7 +266,7 @@ class control{
     boolean relief = false;
 
     double Max_length = 2; //aka +-2 this is just to trick the controller it always misbehaves its actually +-3
-    Neuron_fucker nr_lqr = new Neuron_fucker();
+    PretrainedLqrNet nr_lqr = new PretrainedLqrNet();
     public control(double Mass, double mass, double Length, double k1, double k2, double k3, double k4)throws Exception{
         this.M = Mass;
         this.m = mass;
@@ -277,7 +277,7 @@ class control{
         this.K4 = k4;
         nr_swingup.setup();
     }
-    public double fuckyou(double x, double xd, double theta, double thetad) {
+    public double computeControl(double x, double xd, double theta, double thetad) {
         method = true;
         double error = theta - Math.PI;
         error = Math.atan2(Math.sin(error), Math.cos(error));
@@ -290,10 +290,10 @@ class control{
             return Math.max(-maxForce, Math.min(maxForce, catchForce));
         }
         method = false;
-        return claude_i_hate_you_soo_much_i_made_my_own_controller(x, xd, theta, thetad, error); 
+        return swingUpController(x, xd, theta, thetad, error); 
     }
 
-    private double claude_i_hate_you_soo_much_i_made_my_own_controller(double x, double xd, double theta, double thetad, double err) {
+    private double swingUpController(double x, double xd, double theta, double thetad, double err) {
         if (initial) {
             
             if (theta * thetad > 0) {
@@ -480,7 +480,7 @@ class Neuron {
             }
             for (int b = 0; b < s1; b++) {
                 if (n == ls.length - 2) {
-                    layer[n + 1][b] = Math.tanh(layer[n + 1][b] + this.b[n][b]);
+                    layer[n + 1][b] = sigmoid(layer[n + 1][b] + this.b[n][b]);
                 } else {
                     layer[n + 1][b] = relu(layer[n + 1][b] + this.b[n][b]);
                 }
@@ -520,7 +520,7 @@ class Neuron {
 
     double k = 1.0;
 
-    void fuckingbackpropogayson(double target, double alpha) {
+    void backpropagate(double target, double alpha) {
         int L = ls.length - 2;
         double out = layer[L + 1][0];
         error[L][0] = out * (1.0 - out) * (target - out);
@@ -568,12 +568,12 @@ class Neuron {
         return k;
     }
 }
-class Neuron_fucker { // pretrained by rl noo need for training again trust
+class PretrainedLqrNet { // pretrained by rl noo need for training again trust
     int[] ls = {4, 1};
     double[][] layer;
     double[][][] w;
     double[][] b;
-    public Neuron_fucker() {
+    public PretrainedLqrNet() {
         int NL = ls.length;
         layer = new double[NL][];
         for (int i = 0; i < NL; i++) {
